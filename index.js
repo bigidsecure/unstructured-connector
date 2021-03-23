@@ -136,7 +136,7 @@ async function searchFile(containerName, objectName, search) {
                 searchedFieldName: criteria.searchedFieldName,
                 searchedFieldValue: criteria.searchedFieldValue,
                 fullObjectName: containerName+"/"+objectName,
-                offset = foundAt
+                offset: foundAt
             });
             foundAt = contents.indexOf(criteria.searchedFieldValue, startIndex);
         }
