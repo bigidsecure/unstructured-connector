@@ -1,8 +1,10 @@
 const express = require('express');
 const moment = require('moment');
+const pdf = require('pdf-parse');
 const app = express();
 const port = 8001;
 const fs = require('fs');
+const { indexOf } = require('global-modules');
 
 function getContainers() {
     // START LIST CONTAINERS
@@ -63,14 +65,14 @@ function getFileMetadata(containerName, objectName) {
     // END GET A SINGLE FILE'S METADATA
 }
 
-function getContainerMetadata(containerName,offset) {
+function getContainerMetadata(containerName, offset) {
     // START GET ALL METADATA
     // UNCOMMENT
     // Create our result to send.
     let result = { "status": "success", "objects": [] };
 
     // Read file names within the Files directory
-    let files = fs.readdirSync('Files/'+containerName, { withFileTypes: true });
+    let files = fs.readdirSync('Files/' + containerName, { withFileTypes: true });
     // Look through our list of file names
     files.forEach(file => {
         // Use the metadata function we wrote in the last exercise to return the metadata
@@ -104,6 +106,46 @@ function getFileContents(containerName, objectName) {
     // END GET FILE CONTENTS
 }
 
+async function searchFile(containerName, objectName, search) {
+    // START SEARCH FILE CONTENTS
+    // UNCOMMENT
+    // Create our result to send.
+    let result = { "status": "success", "records": [{
+        id: containerName+"/"+objectName,
+        data: [{}]
+    }] };
+
+    let path = './Files/' + containerName + "/" + objectName;
+    // Double check that this file exists. If not, error out.
+    if (fs.existsSync(path) !== true) {
+        return { status: "error" };
+    }
+    // Since PDFs aren't readible, we need to first use a library so we can read it as text
+    let file = fs.readFileSync(path);
+    let contents = (await pdf(file)).text;
+
+    for (let criteria of search) {
+        // If we have isFullMatch, we're going to continue. Why?
+        if (criteria.isFullMatch == "true") {
+            continue;
+        }
+        let startIndex = 0;
+        let foundAt = contents.indexOf(criteria.searchedFieldValue, startIndex);
+        while (foundAt !== -1) {
+            result.records[0].data.push({
+                searchedFieldName: criteria.searchedFieldName,
+                searchedFieldValue: criteria.searchedFieldValue,
+                fullObjectName: containerName+"/"+objectName,
+                offset = foundAt
+            });
+            foundAt = contents.indexOf(criteria.searchedFieldValue, startIndex);
+        }
+    }
+    return result;
+    // UNCOMMENT
+    // END SEARCH FILE CONTENTS
+}
+
 app.get('/containers', (req, res) => {
     return res.send(getContainers());
 });
@@ -114,12 +156,16 @@ app.get('/objects/:containerName', (req, res) => {
 
 
 app.get('/objects/:containerName/:objectName/describe', (req, res) => {
-    return res.send(getFileMetadata(req.params.containerName,req.params.objectName));
+    return res.send(getFileMetadata(req.params.containerName, req.params.objectName));
 });
 
 app.get('/objects/:containerName/:objectName/content-stream', (req, res) => {
     res.setHeader("Content-Type", "application/pdf")
-    return res.send(getFileContents(req.params.containerName,req.params.objectName));
+    return res.send(getFileContents(req.params.containerName, req.params.objectName));
+});
+
+app.post('/objects/:containerName/:objectName/sar', (req, res) => {
+    return res.send(searchFile(req.params.containerName, req.params.objectName, req.body));
 });
 
 
